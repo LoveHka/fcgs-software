@@ -1,35 +1,56 @@
 #include "main_window.h"
+#include "datasource/datasource.h"
 
-#include <QLabel>
+#include <QtCharts/QChartView>
+#include <QtCharts/QLineSeries>
+#include <QtCharts/QChart>
+#include <QtCharts/QValueAxis>
 #include <QTimer>
-#include <QVBoxLayout>
-#include <cmath>
 
-MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
-	
-	auto* central = new QWidget(this);
-	auto* layout = new QVBoxLayout(central);
 
-	valueLabel_ = new QLabel("0.0", this);
 
-	valueLabel_->setAlignment(Qt::AlignCenter);
-	valueLabel_->setStyleSheet("font-size: 24px;");
 
-	layout->addWidget(valueLabel_);
-	setCentralWidget(central);
+MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent),
+    dataSource(std::make_unique<DataSource>()) 
+{
+    series = new QLineSeries();
+    
+    auto *chart = new QChart();
+    chart->addSeries(series);
+    chart->legend()->hide();
 
-	timer_ = new QTimer(this);
-	connect(timer_, &QTimer::timeout, this, &MainWindow::onUpdate);
+    auto *axisX = new QValueAxis;
+    axisX->setRange(0, 10);
+    axisX->setTitleText("Time");
 
-	timer_->start(50);
+    auto *axisY = new QValueAxis;
+    axisY->setRange(0, 10);
+    axisY->setTitleText("Value");
+
+    chart->addAxis(axisX, Qt::AlignBottom);
+    chart->addAxis(axisY, Qt::AlignLeft);
+
+    series->attachAxis(axisX);
+    series->attachAxis(axisY);
+
+    chartView = new QChartView(chart, this);
+    chartView->setRenderHint(QPainter::Antialiasing);
+    setCentralWidget(chartView);
+
+    timer = new QTimer(this);
+    connect(timer, &QTimer::timeout, this, &MainWindow::onUpdate);
+    timer->start(16);
 }
 
 void MainWindow::onUpdate()
 {
-	static double t = 0.0;
-	t += 0.05;
-	
-	double value = std::sin(t);
+	time += 0.016;
 
-	valueLabel_->setText(QString::number(value, 'f', 3));
+    double y = dataSource->next();
+    series->append(time, y);
+
+    if (time > 10.0) {
+        series->remove(0);
+        chartView->chart()->axisX()->setRange(time - 10.0, time);
+    }
 }
