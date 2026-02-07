@@ -15,7 +15,7 @@ class MainWindow : public QMainWindow
 
 public:
 	explicit MainWindow(QWidget *parent = nullptr); //init
-    ~MainWindow(); //destructor
+        ~MainWindow() override; //destructor
 
 private slots:
 	void onUpdate(); 
@@ -23,9 +23,9 @@ private slots:
 private:
     std::unique_ptr<DataSource> dataSource;
     
-    QChartView* chartView = nullptr;
-    QLineSeries* series = nullptr;
-    QTimer* timer = nullptr;
+    QChartView* chartView{nullptr};
+    QLineSeries* series{nullptr};
+    QTimer* timer = {nullptr};
 
     double time = 0.0;
 };
