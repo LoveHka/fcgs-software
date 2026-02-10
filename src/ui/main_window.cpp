@@ -1,30 +1,28 @@
 #include "main_window.h"
-#include "datasource/datasource.h"
+#include "datasource/serialreader.h"
+#include "datasource/datapacket.h"
 
 #include <QtCharts/QChartView>
 #include <QtCharts/QLineSeries>
 #include <QtCharts/QChart>
 #include <QtCharts/QValueAxis>
-#include <QTimer>
 
 
-MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent),
-    dataSource(std::make_unique<DataSource>()), time(0.0) 
+MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 {
     series = new QLineSeries(this);
-    
     auto *chart = new QChart();
     chart->addSeries(series);
     chart->legend()->hide();
     chart->setTitle("Real-time Data");
 
-    auto *axisX = new QValueAxis(chart);
+    axisX = new QValueAxis(chart);
     axisX->setRange(0, 10);
     axisX->setTitleText("Time");
     axisX->setLabelFormat("%.2f");
 
     auto *axisY = new QValueAxis(chart);
-    axisY->setRange(0, 10);
+    axisY->setRange(0, 100);
     axisY->setTitleText("Value");
     axisY->setLabelFormat("%.2f");
 
@@ -37,37 +35,29 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent),
     chartView = new QChartView(chart, this);
     chartView->setRenderHint(QPainter::Antialiasing);
     setCentralWidget(chartView);
+    
+    reader = new SerialReader(this);
 
-    timer = new QTimer(this);
-    connect(timer, &QTimer::timeout, this, &MainWindow::onUpdate);
-    timer->start(16);
+    connect(reader, &SerialReader::packetReady, this, &MainWindow::onPacket);
+
+    reader->open("/dev/ttyUSB0");
+    series->append(0, 0);
+    series->append(2, 10);
+    series->append(3, 100);
+    series->append(4, 200);
 }
 
-void MainWindow::onUpdate()
+void MainWindow::onPacket(const DataPacket& p)
 {
-    time += 0.016;
+    qDebug() << "Packet here: " << p.time;
+    auto time = p.time / 1000;    // millis to seconds
+    series->append(time, p.ax);
 
-    double y = dataSource->next();
-    series->append(time, y);
-	
     if (series->count() > 1000) {
-	    series->removePoints(0, series->count() - 1000);
-    }
-    if (time > 10.0) {
-    	auto axes = chartView->chart()->axes(Qt::Horizontal);
-	if (!axes.isEmpty()) {
-		if (auto *axisX = qobject_cast<QValueAxis*>(axes.first())) {
-			axisX->setRange(time-10.0, time);
-		}
+        series->removePoints(0, series->count() - 1000);
     }
 
-}
+    axisX->setRange(time - 10.0, time);
 }
 
-MainWindow::~MainWindow()
-{
-	if (timer && timer->isActive()) {
-		timer->stop();
-	}
-}
 

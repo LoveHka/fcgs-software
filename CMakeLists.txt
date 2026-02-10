@@ -10,13 +10,14 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Charts)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Charts SerialPort)
 
 
 add_executable(fcgs
 	src/main.cpp
 	src/ui/main_window.cpp
     src/datasource/datasource.cpp
+    src/datasource/serialreader.cpp
 )
 
 target_include_directories(fcgs PRIVATE
@@ -26,4 +27,5 @@ target_include_directories(fcgs PRIVATE
 target_link_libraries(fcgs
 	Qt6::Widgets
     Qt6::Charts
+    Qt6::SerialPort
 )

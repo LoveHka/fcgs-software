@@ -5,9 +5,10 @@
 
 class QChartView;
 class QLineSeries;
-class QTimer;
+class QValueAxis;
 
-class DataSource;
+class SerialReader;
+struct DataPacket;
 
 class MainWindow : public QMainWindow
 {
@@ -15,19 +16,20 @@ class MainWindow : public QMainWindow
 
 public:
 	explicit MainWindow(QWidget *parent = nullptr); //init
-        ~MainWindow() override; //destructor
 
 private slots:
-	void onUpdate(); 
+	void onPacket(const DataPacket& p); 
 
 private:
-    std::unique_ptr<DataSource> dataSource;
+    
     
     QChartView* chartView{nullptr};
     QLineSeries* series{nullptr};
-    QTimer* timer = {nullptr};
+    QValueAxis* axisX{nullptr};
 
-    double time = 0.0;
+    SerialReader* reader{nullptr};
+
+    
 };
 
 
