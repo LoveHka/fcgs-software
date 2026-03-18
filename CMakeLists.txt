@@ -16,7 +16,6 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets Charts SerialPort)
 add_executable(fcgs
 	src/main.cpp
 	src/ui/main_window.cpp
-    src/datasource/datasource.cpp
     src/datasource/serialreader.cpp
 )
 

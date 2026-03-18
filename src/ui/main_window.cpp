@@ -1,6 +1,11 @@
+// ui/main_window.cpp
 #include "main_window.h"
 #include "datasource/serialreader.h"
 #include "datasource/datapacket.h"
+
+#include <QInputDialog>
+#include <QMessageBox>
+#include <QSerialPortInfo>
 
 #include <QtCharts/QChartView>
 #include <QtCharts/QLineSeries>
@@ -9,23 +14,24 @@
 
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
-{
+{   
+    // Серия точек для графика
     series = new QLineSeries(this);
     auto *chart = new QChart();
     chart->addSeries(series);
     chart->legend()->hide();
     chart->setTitle("Real-time Data");
-
+    // Создаем ось
     axisX = new QValueAxis(chart);
     axisX->setRange(0, 10);
     axisX->setTitleText("Time");
     axisX->setLabelFormat("%.2f");
-
+    // Создаем ось
     auto *axisY = new QValueAxis(chart);
     axisY->setRange(-8, 8);
     axisY->setTitleText("Value");
     axisY->setLabelFormat("%.2f");
-
+    // Добавляем оси
     chart->addAxis(axisX, Qt::AlignBottom);
     chart->addAxis(axisY, Qt::AlignLeft);
 
@@ -40,7 +46,37 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 
     connect(reader, &SerialReader::packetReady, this, &MainWindow::onPacket);
 
-    reader->open("/dev/ttyUSB0");
+    // --- ВЫБОР ПОРТА ---
+    auto ports = getArduinoPorts();
+
+    if (ports.isEmpty()) {
+        QMessageBox::critical(this, "Error", "No Arduino-like ports found");
+        return;
+    }
+
+    QStringList portNames;
+    for (const auto& p : ports) {
+        portNames << p.portName() + " (" + p.description() + ")";
+    }
+
+    bool ok = false;
+    QString selected = QInputDialog::getItem(
+        this,
+        "Select Arduino Port",
+        "Available ports:",
+        portNames,
+        0,
+        false,
+        &ok
+    );
+
+    if (!ok) return;
+
+    int index = portNames.indexOf(selected);
+    if (index >= 0) {
+        reader->open(ports[index].portName());
+        qDebug() << "PORT: " << index << " --- " << ports[index].portName();
+    }
 }
 
 void MainWindow::onPacket(const DataPacket& p)

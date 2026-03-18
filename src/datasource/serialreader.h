@@ -1,7 +1,9 @@
+// datasource/serialreader.h
 #pragma once
 
 #include <QObject>
 #include <QSerialPort>
+#include <QSerialPortInfo>
 #include "datapacket.h"
 
 class SerialReader : public QObject
@@ -24,3 +26,5 @@ private:
 
     void tryParse();
 };
+
+QList<QSerialPortInfo> getArduinoPorts();
