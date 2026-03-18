@@ -14,6 +14,9 @@ void SerialReader::open(const QString &portName)
     QList<QSerialPortInfo> ports = QSerialPortInfo::availablePorts();
     for (const QSerialPortInfo &port : ports) {
         qDebug() << "Port: " << port.portName();
+        qDebug() << "Description: " << port.description();
+        qDebug() << "Manuf: " << port.manufacturer();
+        qDebug() << "SystemLoc: " << port.systemLocation();
     }
     serial.setPortName(portName);
     serial.setBaudRate(QSerialPort::Baud115200);

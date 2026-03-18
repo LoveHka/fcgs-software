@@ -22,7 +22,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     axisX->setLabelFormat("%.2f");
 
     auto *axisY = new QValueAxis(chart);
-    axisY->setRange(0, 100);
+    axisY->setRange(-8, 8);
     axisY->setTitleText("Value");
     axisY->setLabelFormat("%.2f");
 
@@ -41,10 +41,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     connect(reader, &SerialReader::packetReady, this, &MainWindow::onPacket);
 
     reader->open("/dev/ttyUSB0");
-    series->append(0, 0);
-    series->append(2, 10);
-    series->append(3, 100);
-    series->append(4, 200);
 }
 
 void MainWindow::onPacket(const DataPacket& p)
