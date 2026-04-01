@@ -1,7 +1,7 @@
 // ui/main_window.cpp
 #include "main_window.h"
 #include "datasource/serialreader.h"
-#include "datasource/datapacket.h"
+#include "datasource/telemetry_protocol.h"
 
 #include <QInputDialog>
 #include <QMessageBox>
@@ -28,7 +28,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     axisX->setLabelFormat("%.2f");
     // Создаем ось
     auto *axisY = new QValueAxis(chart);
-    axisY->setRange(-8, 8);
+    axisY->setRange(-200, 200);
     axisY->setTitleText("Value");
     axisY->setLabelFormat("%.2f");
     // Добавляем оси
@@ -75,21 +75,23 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     int index = portNames.indexOf(selected);
     if (index >= 0) {
         reader->open(ports[index].portName());
-        qDebug() << "PORT: " << index << " --- " << ports[index].portName();
+        //qDebug() << "PORT: " << index << " --- " << ports[index].portName();
     }
 }
 
 void MainWindow::onPacket(const DataPacket& p)
 {
-    qDebug() << "Packet here: " << p.time;
-    auto time = p.time / 1000;    // millis to seconds
-    series->append(time, p.ax);
+    //qDebug() << "Packet here:" << p.time;
+
+    double timeSec = p.time / 1000.0;
+    series->append(timeSec, p.sx);
+    qDebug() << p.sx;
 
     if (series->count() > 1000) {
         series->removePoints(0, series->count() - 1000);
     }
 
-    axisX->setRange(time - 10.0, time);
+    axisX->setRange(timeSec - 10.0, timeSec);
 }
 
 

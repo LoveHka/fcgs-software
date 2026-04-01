@@ -1,6 +1,7 @@
 // datasource/serialreader.cpp
 #include "serialreader.h"
-#include "datasource/datapacket.h"
+#include <QtEndian>
+#include "datasource/telemetry_protocol.h"
 #include <QDebug>
 #include <QSerialPortInfo>
 
@@ -51,6 +52,10 @@ void SerialReader::open(const QString &portName)
 {
     serial.setPortName(portName);
     serial.setBaudRate(QSerialPort::Baud115200);
+    serial.setDataBits(QSerialPort::Data8);
+    serial.setParity(QSerialPort::NoParity);
+    serial.setStopBits(QSerialPort::OneStop);
+    serial.setFlowControl(QSerialPort::NoFlowControl);
 
     if (!serial.open(QIODevice::ReadOnly)) {
         qDebug() << "OPEN FAILED:" << serial.errorString();
@@ -62,34 +67,76 @@ void SerialReader::open(const QString &portName)
 
 void SerialReader::onReadyRead()
 {   
-    qDebug() << "onReadyRead )))";   
+       
     QByteArray data = serial.readAll();
-    qDebug() << data;
+    
     buffer.append(data);
     
     tryParse();
-    
 }
 
 void SerialReader::tryParse()
 {
-    while (buffer.contains('\n')) {
-        int idx = buffer.indexOf('\n');
-        QByteArray line = buffer.left(idx);
-        buffer.remove(0, idx + 1);
-        
-        line = line.trimmed();
+    constexpr int headerSize = 6; // SOF1 SOF2 version type lenLo lenHi
+    constexpr int crcSize = 2;
 
-        QList<QByteArray> parts = line.split(',');
+    while (true) {
+        // Find sync byte 0xAA
+        int start = buffer.indexOf(char(TEL_SOF1));
+        if (start < 0) {
+            buffer.clear();
+            return;
+        }
 
-        if (parts.size() < 2) continue;
+        // Drop garbage before sync
+        if (start > 0) {
+            buffer.remove(0, start);
+        }
 
-        DataPacket p;
-        p.time = parts[0].toFloat();
-        p.ax = parts[1].toFloat();
-        
-        qDebug() << "EMIT PACKET";
-        emit packetReady(p);
+        if (buffer.size() < headerSize) {
+            return; // need more bytes
+        }
+
+        if ((quint8)buffer[1] != TEL_SOF2) {
+            buffer.remove(0, 1);
+            continue;
+        }
+
+        quint8 version = (quint8)buffer[2];
+        quint8 type    = (quint8)buffer[3];
+
+        quint16 payloadLen = qFromLittleEndian<quint16>(
+            reinterpret_cast<const uchar*>(buffer.constData() + 4)
+        );
+
+        const int frameSize = headerSize + payloadLen + crcSize;
+        if (buffer.size() < frameSize) {
+            return; // incomplete frame
+        }
+
+        QByteArray payload = buffer.mid(headerSize, payloadLen);
+
+        quint16 rxCrc = qFromLittleEndian<quint16>(
+            reinterpret_cast<const uchar*>(buffer.constData() + headerSize + payloadLen)
+        );
+
+        quint16 calcCrc = crc16_ccitt(
+            reinterpret_cast<const uint8_t*>(payload.constData()),
+            payload.size()
+        );
+
+        if (version != TEL_VERSION || type != TEL_TYPE_DATA || rxCrc != calcCrc) {
+            buffer.remove(0, 1); // resync
+            continue;
+        }
+
+        if (payloadLen == sizeof(DataPacket)) {
+            DataPacket p{};
+            std::memcpy(&p, payload.constData(), sizeof(DataPacket));
+            emit packetReady(p);
+        }
+
+        buffer.remove(0, frameSize);
     }
 }
 

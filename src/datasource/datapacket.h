@@ -1,4 +1,4 @@
-// datasource/serialpacket.h
+// datasource/datapacket.h
 #pragma once
 
 struct DataPacket

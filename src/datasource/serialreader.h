@@ -4,7 +4,7 @@
 #include <QObject>
 #include <QSerialPort>
 #include <QSerialPortInfo>
-#include "datapacket.h"
+#include "datasource/telemetry_protocol.h"
 
 class SerialReader : public QObject
 {
