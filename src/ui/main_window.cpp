@@ -1,53 +1,63 @@
-// ui/main_window.cpp
 #include "main_window.h"
+
 #include "datasource/serialreader.h"
 #include "datasource/telemetry_protocol.h"
+#include "ui/telemetry_chart_widget.h"
 
+#include <QFrame>
+#include <QHBoxLayout>
 #include <QInputDialog>
 #include <QMessageBox>
-#include <QSerialPortInfo>
+#include <QVBoxLayout>
 
-#include <QtCharts/QChartView>
-#include <QtCharts/QLineSeries>
-#include <QtCharts/QChart>
-#include <QtCharts/QValueAxis>
+namespace
+{
+QFrame* createPanel(QWidget* parent = nullptr)
+{
+    auto* frame = new QFrame(parent);
+    frame->setFrameShape(QFrame::StyledPanel);
+    frame->setFrameShadow(QFrame::Plain);
+    frame->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    return frame;
+}
+} // namespace
 
+MainWindow::MainWindow(QWidget* parent)
+    : QMainWindow(parent)
+{
+    setWindowTitle("FCGS Telemetry");
 
-MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
-{   
-    // Серия точек для графика
-    series = new QLineSeries(this);
-    auto *chart = new QChart();
-    chart->addSeries(series);
-    chart->legend()->hide();
-    chart->setTitle("Real-time Data");
-    // Создаем ось
-    axisX = new QValueAxis(chart);
-    axisX->setRange(0, 10);
-    axisX->setTitleText("Time");
-    axisX->setLabelFormat("%.2f");
-    // Создаем ось
-    auto *axisY = new QValueAxis(chart);
-    axisY->setRange(-200, 200);
-    axisY->setTitleText("Value");
-    axisY->setLabelFormat("%.2f");
-    // Добавляем оси
-    chart->addAxis(axisX, Qt::AlignBottom);
-    chart->addAxis(axisY, Qt::AlignLeft);
+    auto* central = new QWidget(this);
+    auto* rootLayout = new QHBoxLayout(central);
+    rootLayout->setContentsMargins(8, 8, 8, 8);
+    rootLayout->setSpacing(8);
 
-    series->attachAxis(axisX);
-    series->attachAxis(axisY);
+    auto* leftPanel = createPanel(central);
+    auto* middlePanel = createPanel(central);
+    auto* rightPanel = createPanel(central);
 
-    chartView = new QChartView(chart, this);
-    chartView->setRenderHint(QPainter::Antialiasing);
-    setCentralWidget(chartView);
-    
+    rootLayout->addWidget(leftPanel, 1);
+    rootLayout->addWidget(middlePanel, 1);
+    rootLayout->addWidget(rightPanel, 1);
+
+    setCentralWidget(central);
+
+    auto* leftLayout = new QVBoxLayout(leftPanel);
+    leftLayout->setContentsMargins(6, 6, 6, 6);
+    leftLayout->setSpacing(6);
+
+    m_charts[0] = new TelemetryChartWidget("Acceleration X", -20.0, 20.0, 10.0, leftPanel);
+    m_charts[1] = new TelemetryChartWidget("Acceleration Y", -20.0, 20.0, 10.0, leftPanel);
+    m_charts[2] = new TelemetryChartWidget("Acceleration Z", -20.0, 20.0, 10.0, leftPanel);
+
+    for (auto* chart : m_charts) {
+        leftLayout->addWidget(chart, 1);
+    }
+
     reader = new SerialReader(this);
-
     connect(reader, &SerialReader::packetReady, this, &MainWindow::onPacket);
 
-    // --- ВЫБОР ПОРТА ---
-    auto ports = getArduinoPorts();
+    const auto ports = getArduinoPorts();
 
     if (ports.isEmpty()) {
         QMessageBox::critical(this, "Error", "No Arduino-like ports found");
@@ -55,12 +65,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     }
 
     QStringList portNames;
+    portNames.reserve(ports.size());
+
     for (const auto& p : ports) {
         portNames << p.portName() + " (" + p.description() + ")";
     }
 
     bool ok = false;
-    QString selected = QInputDialog::getItem(
+    const QString selected = QInputDialog::getItem(
         this,
         "Select Arduino Port",
         "Available ports:",
@@ -70,28 +82,21 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
         &ok
     );
 
-    if (!ok) return;
+    if (!ok) {
+        return;
+    }
 
-    int index = portNames.indexOf(selected);
+    const int index = portNames.indexOf(selected);
     if (index >= 0) {
         reader->open(ports[index].portName());
-        //qDebug() << "PORT: " << index << " --- " << ports[index].portName();
     }
 }
 
 void MainWindow::onPacket(const DataPacket& p)
 {
-    //qDebug() << "Packet here:" << p.time;
+    const double timeSec = static_cast<double>(p.time) / 1000.0;
 
-    double timeSec = p.time / 1000.0;
-    series->append(timeSec, p.sx);
-    qDebug() << p.sx;
-
-    if (series->count() > 1000) {
-        series->removePoints(0, series->count() - 1000);
-    }
-
-    axisX->setRange(timeSec - 10.0, timeSec);
+    m_charts[0]->appendPoint(timeSec, p.sx);
+    m_charts[1]->appendPoint(timeSec, p.sy);
+    m_charts[2]->appendPoint(timeSec, p.sz);
 }
-
-

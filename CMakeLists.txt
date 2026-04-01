@@ -3,8 +3,8 @@ project(fcgs LANGUAGES CXX)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(CMAKE_CXX_STANDART 17)
-set(CMAKE_CXX_STANDART_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -12,10 +12,10 @@ set(CMAKE_AUTOUIC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets Charts SerialPort)
 
-
 add_executable(fcgs
-	src/main.cpp
-	src/ui/main_window.cpp
+    src/main.cpp
+    src/ui/main_window.cpp
+    src/ui/telemetry_chart_widget.cpp
     src/datasource/serialreader.cpp
 )
 
@@ -24,7 +24,7 @@ target_include_directories(fcgs PRIVATE
 )
 
 target_link_libraries(fcgs
-	Qt6::Widgets
+    Qt6::Widgets
     Qt6::Charts
     Qt6::SerialPort
 )
