@@ -1,9 +1,13 @@
 // datasource/serialreader.cpp
+
 #include "serialreader.h"
+
 #include <QtEndian>
 #include "datasource/telemetry_protocol.h"
+
 #include <QDebug>
 #include <QSerialPortInfo>
+#include <cstring>
 
 SerialReader::SerialReader(QObject *parent)
     : QObject(parent)
@@ -12,13 +16,14 @@ SerialReader::SerialReader(QObject *parent)
 }
 
 static bool isArduinoLike(const QSerialPortInfo& port)
-{   
+{
     /*
     Detecting if available port may be arduino
     */
 
     const auto vid = port.vendorIdentifier();
     const auto pid = port.productIdentifier();
+    Q_UNUSED(pid);
 
     if (vid == 0x2341 || vid == 0x1A86 || vid == 0x10C4)
         return true;
@@ -66,12 +71,11 @@ void SerialReader::open(const QString &portName)
 }
 
 void SerialReader::onReadyRead()
-{   
-       
+{
     QByteArray data = serial.readAll();
-    
+
     buffer.append(data);
-    
+
     tryParse();
 }
 
@@ -139,8 +143,3 @@ void SerialReader::tryParse()
         buffer.remove(0, frameSize);
     }
 }
-
-
-
-
-

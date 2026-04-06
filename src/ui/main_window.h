@@ -1,3 +1,5 @@
+// ui/main_window.h
+
 #pragma once
 
 #include <QMainWindow>

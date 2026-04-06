@@ -1,3 +1,5 @@
+// ui/main_window.cpp
+
 #include "main_window.h"
 
 #include "datasource/serialreader.h"
@@ -46,9 +48,18 @@ MainWindow::MainWindow(QWidget* parent)
     leftLayout->setContentsMargins(6, 6, 6, 6);
     leftLayout->setSpacing(6);
 
-    m_charts[0] = new TelemetryChartWidget("Acceleration X", -20.0, 20.0, 10.0, leftPanel);
-    m_charts[1] = new TelemetryChartWidget("Acceleration Y", -20.0, 20.0, 10.0, leftPanel);
-    m_charts[2] = new TelemetryChartWidget("Acceleration Z", -20.0, 20.0, 10.0, leftPanel);
+    m_charts[0] = new TelemetryChartWidget(
+        QStringLiteral("Ускорения (ax, ay, az)"),
+        leftPanel
+    );
+    m_charts[1] = new TelemetryChartWidget(
+        QStringLiteral("Гироскоп (gx, gy, gz)"),
+        leftPanel
+    );
+    m_charts[2] = new TelemetryChartWidget(
+        QStringLiteral("Температура T"),
+        leftPanel
+    );
 
     for (auto* chart : m_charts) {
         leftLayout->addWidget(chart, 1);
@@ -94,9 +105,7 @@ MainWindow::MainWindow(QWidget* parent)
 
 void MainWindow::onPacket(const DataPacket& p)
 {
-    const double timeSec = static_cast<double>(p.time) / 1000.0;
-
-    m_charts[0]->appendPoint(timeSec, p.sx);
-    m_charts[1]->appendPoint(timeSec, p.sy);
-    m_charts[2]->appendPoint(timeSec, p.sz);
+    m_charts[0]->appendPacket(p);
+    m_charts[1]->appendPacket(p);
+    m_charts[2]->appendPacket(p);
 }
