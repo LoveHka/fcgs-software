@@ -7,8 +7,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
-set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC OFF)
+set(CMAKE_AUTOUIC OFF)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets Charts SerialPort)
 
@@ -16,6 +16,9 @@ add_executable(fcgs
     src/main.cpp
     src/ui/main_window.cpp
     src/ui/telemetry_chart_widget.cpp
+    src/ui/telemetry_3d_widget.cpp
+    src/ui/trajectory_widget.cpp
+    src/ui/telemetry_values_widget.cpp
     src/datasource/serialreader.cpp
 )
 

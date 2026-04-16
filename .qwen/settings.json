@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmake *)",
+      "Bash(mingw32-make *)",
+      "Bash(rmdir *)",
+      "Bash(mkdir *)",
+      "Bash(dir *)",
+      "Bash(del *)",
+      "Bash(ninja)"
+    ]
+  },
+  "$version": 3
+}
