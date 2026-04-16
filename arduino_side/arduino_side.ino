@@ -5,7 +5,7 @@
 #include <Servo.h>
 #include <nRF24L01.h>
 #include <RF24.h>
-#include "telemetry_protocol.h"
+#include "telemetry_protocol.h"   // Протокол для пакета передачи телеметрии
 
 Servo Sch1;
 Servo Sch2;
@@ -29,14 +29,16 @@ float axCor, ayCor, azCor;
 float vx, vy, vz;
 float sx, sy, sz;
 
+// --- МАГНИТОМЕТР ---
 int mx, my, mz;
 float MagDecl = 11.93; //Магнитное склонение в градусах (оно изменчиво)
 float Heading;
 
+// --- ГИРОСКОП ---
 float gx, gy, gz;
 float angx, angy, angz;
 float angrx, angry, angrz;
-
+// --- ТРМОМЕТР-БАРОМЕТР ---
 int BarThermConstS[8];
 unsigned int BarThermConstU[3];
 const char* BarThermConstNameS[8] = {"AC1", "AC2", "AC3", "B1", "B2", "MB", "MC", "MD"};
@@ -87,7 +89,7 @@ void loop() {
   Tcycle = millis() - tmr;
   
   
-  if(millis() - tmr2 >= 20){
+  if(millis() - tmr2 >= 50){
     sendPacket();
     tmr2 = millis();
   }
