@@ -2,12 +2,12 @@
 
 #include "main_window.h"
 
-#include "datasource/serialreader.h"
-#include "datasource/telemetry_protocol.h"
-#include "ui/telemetry_chart_widget.h"
-#include "ui/telemetry_3d_widget.h"
-#include "ui/trajectory_widget.h"
-#include "ui/telemetry_values_widget.h"
+#include "datasource/serialreader.h"    // Прием телеметрии
+#include "datasource/telemetry_protocol.h"    // Структура телеметрии
+#include "ui/telemetry_chart_widget.h"        // Виджет для графиков
+#include "ui/telemetry_3d_widget.h"            // Виджет для 3Д самолетика
+#include "ui/trajectory_widget.h"                // Виджет для траектории с видом сверху
+#include "ui/telemetry_values_widget.h"        // Виджет для всей телеметрии, отображается всегда
 
 #include <QComboBox>
 #include <QFrame>

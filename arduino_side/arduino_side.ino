@@ -5,7 +5,7 @@
 #include <Servo.h>
 #include <nRF24L01.h>
 #include <RF24.h>
-#include "telemetry_protocol.h"
+#include "telemetry_protocol.h"   // Протокол для пакета передачи телеметрии
 
 Servo Sch1;
 Servo Sch2;
@@ -24,19 +24,22 @@ const byte L3G4200D = 0x69; //SDO к 3.3v - 0x69, к GND - 0x68
 
 //Раз в столько мс производятся вычисления скоростей, позиций и т.п.
 
-float ax, ay, az;
-float axCor, ayCor, azCor;
-float vx, vy, vz;
+float ax, ay, az;           // Ускорения, снятые с акселл. Если есть фильтр, то уже фильтрованные
+float axCor, ayCor, azCor; // Коррекция акселерометра, устанавливается в функции AcsCall
+float vx, vy, vz;         // Вычисленные скорости и координа
 float sx, sy, sz;
 
+// --- МАГНИТОМЕТР ---
 int mx, my, mz;
 float MagDecl = 11.93; //Магнитное склонение в градусах (оно изменчиво)
 float Heading;
 
+// --- ГИРОСКОП ---
 float gx, gy, gz;
-float angx, angy, angz;
-float angrx, angry, angrz;
+float angx, angy, angz;   // Углы поворота бпла в пространстве
+float angrx, angry, angrz;  // Те же углы но в радианах 
 
+// --- ТРМОМЕТР-БАРОМЕТР ---
 int BarThermConstS[8];
 unsigned int BarThermConstU[3];
 const char* BarThermConstNameS[8] = {"AC1", "AC2", "AC3", "B1", "B2", "MB", "MC", "MD"};
@@ -65,7 +68,7 @@ void setup() {
   RadioSetup();
   ActuatorsSetup();
   
-   Serial.println("Константы BarTherm двухбайтные, откуда при выводе берутся лишние 2 байта неясно");
+  //Serial.println("Константы BarTherm двухбайтные, откуда при выводе берутся лишние 2 байта неясно");
 
 }
 unsigned long tmr2 = millis();
@@ -87,7 +90,7 @@ void loop() {
   Tcycle = millis() - tmr;
   
   
-  if(millis() - tmr2 >= 20){
+  if(millis() - tmr2 >= 50){
     sendPacket();
     tmr2 = millis();
   }
@@ -123,7 +126,7 @@ static void sendPacket()
     p.P = (float)P;
     p.T = T;
     p.BarAlt = (float)BarAlt;
-    p.V = (float)(analogRead(7) * 5.0f) / 1024.0f;
+    p.Voltage = (float)(analogRead(7) * 5.0f) / 1024.0f;
     p.d = (float)data[1];
     p.Tcycle = (float)Tcycle;
 
@@ -193,9 +196,7 @@ void AcsCall() {
   ay = -(y/26.32 - ayCor);
   az = -(z/26.32 - azCor);
 
-  ax = ax;
-  ay = ay;
-  az = az;
+  // удалил ax=ax и для других осей.
 }
 
 void MagSetup() {
@@ -295,7 +296,7 @@ void GyroSetup() {
      Wire.write(GyroCTRL[i]);
      Wire.endTransmission();
    } 
-
+  // НАчальные значения углов. Не скоростей.
   angx = 0;
   angy = 0;
   angz = 90;
