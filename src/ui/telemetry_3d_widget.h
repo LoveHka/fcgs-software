@@ -2,7 +2,7 @@
 #pragma once
 
 #include <QWidget>
-#include <QVector3D>
+#include <QVector4D>
 #include "datasource/telemetry_protocol.h"
 
 class Telemetry3DWidget : public QWidget
