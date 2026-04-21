@@ -1,5 +1,6 @@
 // calibration/calibrationcontroller.cpp
 #include "calibration/calibrationcontroller.h"
+#include <qobject.h>
 
 CalibrationController::CalibrationController(SerialReader *reader,
                                              QObject *parent)
@@ -37,6 +38,19 @@ void CalibrationController::compute() {
   m_calibrator.compute();
   emit calibrationReady();
   emit statusChanged("Calibration computed");
+  auto &mat = m_calibrator.matrix();
+  auto off = m_calibrator.offset();
+  QString res = QString("Offset:\n %1  %2  %3 \nMatrix: \n")
+                    .arg(off.x(), 5, 'f', 3)
+                    .arg(off.y(), 5, 'f', 3)
+                    .arg(off.z(), 5, 'f', 3);
+  for (int r = 0; r < 3; r++) {
+    res += QString("| %1  %2  %3 |\n")
+               .arg(mat[r * 3], 5, 'f', 3)
+               .arg(mat[r * 3 + 1], 5, 'f', 3)
+               .arg(mat[r * 3 + 2], 5, 'f', 3);
+  }
+  emit statusChanged(res);
 }
 
 void CalibrationController::apply() {
