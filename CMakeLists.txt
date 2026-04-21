@@ -19,7 +19,11 @@ add_executable(fcgs
     src/ui/telemetry_3d_widget.cpp
     src/ui/trajectory_widget.cpp
     src/ui/telemetry_values_widget.cpp
+    src/ui/magcalibrationwidget.cpp
+    src/ui/telemetry_messages_widget.cpp
     src/datasource/serialreader.cpp
+    src/calibration/magcalibrator.cpp
+    src/calibration/calibrationcontroller.cpp
 )
 
 target_include_directories(fcgs PRIVATE

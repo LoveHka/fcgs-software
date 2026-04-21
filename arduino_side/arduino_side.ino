@@ -17,6 +17,9 @@ RF24 radio(9,10);
 byte address[][6] = {"1Node","2Node","3Node","4Node","5Node","6Node"};
 int data[7];
 
+// РЕЖИМ РАБОТЫ 
+uint8_t currentMode = MODE_NORMAL;
+
 const byte ADXL345 = 0x53; //CS к питанию (5v на модуле есть стабилизатор)
 const byte QMC5883L = 0x0D; 
 const byte BMP180 = 0x77; 
@@ -30,9 +33,16 @@ float vx, vy, vz;         // Вычисленные скорости и коор
 float sx, sy, sz;
 
 // --- МАГНИТОМЕТР ---
-int mx, my, mz;
+float mx, my, mz;
 float MagDecl = 11.93; //Магнитное склонение в градусах (оно изменчиво)
 float Heading;
+
+float magOffset[3] = {0,0,0};
+float magMatrix[3][3] = {
+  {1, 0, 0},
+  {0, 1, 0},
+  {0, 0, 1}
+};
 
 // --- ГИРОСКОП ---
 float gx, gy, gz;
@@ -76,17 +86,19 @@ unsigned long tmr2 = millis();
 void loop() {
 
   tmr = millis();
+  
+  processIncoming();
 
   AcsCall();
   MagCall();
   GyroCall();
   BarThermCall();
-
+  if (currentMode == MODE_NORMAL){
   VelPos();
 
   RadioCall();
   ActuatorsCall();
-
+  }
   Tcycle = millis() - tmr;
   
   
@@ -112,9 +124,9 @@ static void sendPacket()
     p.vx = vx;  p.vy = vy;  p.vz = vz;
     p.sx = sx;  p.sy = sy;  p.sz = sz;
 
-    p.mx = (float)mx;
-    p.my = (float)my;
-    p.mz = (float)mz;
+    p.mx = mx;
+    p.my = my;
+    p.mz = mz;
     p.H  = Heading;
 
     p.gx = gx;  p.gy = gy;  p.gz = gz;
@@ -140,6 +152,89 @@ static void sendPacket()
 
     uint16_t crc = crc16_ccitt((const uint8_t*)&p, sizeof(p));
     writeU16LE(crc);
+}
+
+void processIncoming()
+{
+  static uint8_t state = 0;
+  static uint16_t len = 0;
+  static uint8_t type = 0;
+  static uint8_t payload[128];
+  static uint16_t idx = 0;
+
+  while (Serial.available()) {
+    uint8_t b = Serial.read();
+
+    switch (state) {
+
+    case 0: // SOF1
+      if (b == TEL_SOF1) state = 1;
+      break;
+
+    case 1: // SOF2
+      if (b == TEL_SOF2) state = 2;
+      else state = 0;
+      break;
+
+    case 2: // VERSION
+      state = 3;
+      break;
+
+    case 3: // TYPE
+      type = b;
+      state = 4;
+      break;
+
+    case 4: // LEN L
+      len = b;
+      state = 5;
+      break;
+
+    case 5: // LEN H
+      len |= (uint16_t)b << 8;
+      idx = 0;
+      state = 6;
+      break;
+
+    case 6: // PAYLOAD
+      payload[idx++] = b;
+      if (idx >= len)
+        state = 7;
+      break;
+
+    case 7: // CRC (упрощённо: игнорируем проверку)
+      state = 0;
+      sendMessage(payload);
+      if (type == TEL_TYPE_CMD && len == sizeof(CommandPacket)) {
+        CommandPacket cmd;
+        memcpy(&cmd, payload, sizeof(cmd));
+        handleCommand(cmd);
+      }
+      break;
+    }
+  }
+}
+
+void handleCommand(const CommandPacket& c)
+{
+  switch (c.cmd) {
+
+  case CMD_SET_MODE:
+    currentMode = (uint8_t)c.params[0];
+    break;
+
+  case CMD_SET_MAG_CALIB:
+    magOffset[0] = c.params[0];
+    magOffset[1] = c.params[1];
+    magOffset[2] = c.params[2];
+
+    int k = 3;
+    for (int r = 0; r < 3; r++)
+      for (int col = 0; col < 3; col++)
+        magMatrix[r][col] = c.params[k++];
+
+    break;
+  }
 }
 
 void AcsSetup() {
@@ -244,29 +339,49 @@ void MagCall() {
     z |= Wire.read()<<8; //MSB y
   }
                                   //Каждая единица в выводе это Scale (+-8 щас)/2^16, т.е. ~0.000244 Гаусс 0.244 млГаусс 4096 - 1 Гаусс
-  mx = x;
-  my = y;
-  mz = z;
+  float fx = x;
+  float fy = y;
+  float fz = z;
+  if (currentMode == MODE_NORMAL) {
+    applyMagCalibration(fx, fy, fz);
+  }
+  mx = fx;
+  my = fy;
+  mz = fz;
 
-  float kMatrix[4][3] = {
-    {1820.690037, 2054.211639, 1804.899320},
-    {0.810047, -0.018315, -0.003823},
-    {-0.018315, 1.030635, -0.013370},
-    {-0.003823, -0.013370, 0.559138},
-  };
+  // Переводим в градусы
+  Heading = atan2((float)my, (float)mx) * 180.0 / PI;
+    // Учитываем магнитное склонение
+  Heading += MagDecl;
+  // Нормализуем к диапазону 0..360
+  if (Heading < 0) Heading += 360.0;
+  if (Heading >= 360.0) Heading -= 360.0;
+}
 
-  x = kMatrix[1][0]*(mx-kMatrix[0][0])+kMatrix[1][1]*(my-kMatrix[0][1])+kMatrix[1][2]*(mz-kMatrix[0][2]);
-  y = kMatrix[2][0]*(mx-kMatrix[0][0])+kMatrix[2][1]*(my-kMatrix[0][1])+kMatrix[2][2]*(mz-kMatrix[0][2]);
-  z = kMatrix[3][0]*(mx-kMatrix[0][0])+kMatrix[3][1]*(my-kMatrix[0][1])+kMatrix[3][2]*(mz-kMatrix[0][2]);
+void applyMagCalibration(float& x, float& y, float& z)
+{
+  float rx = x - magOffset[0];
+  float ry = y - magOffset[1];
+  float rz = z - magOffset[2];
 
-  //Serial.print(x); Serial.print(" "); Serial.print(y); Serial.print(" "); Serial.println(z); //Это для калибровки
+  float cx =
+    magMatrix[0][0] * rx +
+    magMatrix[0][1] * ry +
+    magMatrix[0][2] * rz;
 
-  byte pitch = 0;
-  byte roll = 0;
- 
-  x = x*cos(pitch) + y*sin(roll)*sin(pitch) + z*cos(roll)*sin(pitch);
-  y = y*cos(roll) - z*sin(roll);
-  Heading = atan2(y, x)/M_PI*180-MagDecl;
+  float cy =
+    magMatrix[1][0] * rx +
+    magMatrix[1][1] * ry +
+    magMatrix[1][2] * rz;
+
+  float cz =
+    magMatrix[2][0] * rx +
+    magMatrix[2][1] * ry +
+    magMatrix[2][2] * rz;
+
+  x = cx;
+  y = cy;
+  z = cz;
 }
 
 void GyroSetup() {
@@ -547,3 +662,30 @@ void VelPos() {
     angrz = angz  * PI / 180;
  
 }
+
+// Отправка текстового сообщения на ПК
+void sendMessage(const char* msg) {
+    uint16_t len = strlen(msg);
+    // Обрезаем, если сообщение слишком длинное
+    if (len > MAX_MSG_LEN) len = MAX_MSG_LEN;
+    
+    // Заголовок
+    Serial.write(TEL_SOF1);
+    Serial.write(TEL_SOF2);
+    Serial.write(TEL_VERSION);
+    Serial.write(TEL_TYPE_MESSAGE);
+    Serial.write(len & 0xFF);
+    Serial.write(len >> 8);
+    
+    // Тело сообщения
+    Serial.write(reinterpret_cast<const uint8_t*>(msg), len);
+    
+    // CRC
+    uint16_t crc = crc16_ccitt(reinterpret_cast<const uint8_t*>(msg), len);
+    Serial.write(crc & 0xFF);
+    Serial.write(crc >> 8);
+}
+
+// Пример использования:
+// sendMessage("Calibration failed on Y axis");
+// sendMessage(String("Mag Y: ") + my);

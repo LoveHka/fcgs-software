@@ -1,6 +1,7 @@
-// telemetry_protocol.h
+// datasource/telemetry_protocol.h
 #pragma once
 
+// #include <cstdint> - Ломает сборку фуу лошара:
 #include <stddef.h>
 #include <stdint.h>
 
@@ -8,8 +9,16 @@ enum : uint8_t {
   TEL_SOF1 = 0xAA,
   TEL_SOF2 = 0x55,
   TEL_VERSION = 1,
-  TEL_TYPE_DATA = 1
+  TEL_TYPE_DATA = 1,
+  TEL_TYPE_CMD = 2,
+  TEL_TYPE_MESSAGE = 3
 };
+
+constexpr uint8_t MAX_MSG_LEN = 64;
+
+enum : uint8_t { CMD_SET_MODE = 1, CMD_SET_MAG_CALIB = 2 };
+
+enum : uint8_t { MODE_NORMAL = 0, MODE_MAG_CALIB = 1 };
 
 // Your current packet, packed so no padding is inserted.
 #pragma pack(push, 1)
@@ -28,6 +37,11 @@ struct DataPacket {
   float Voltage;
   float d;
   float Tcycle;
+};
+
+struct CommandPacket {
+  uint8_t cmd;
+  float params[12]; // 3 смещения + 9 цифр с матрицы для магнитометра
 };
 #pragma pack(pop)
 
