@@ -62,6 +62,8 @@ long P;
 float T;
 int BarAlt;
 
+
+
 unsigned long tmr;
 byte Tcycle;//Раз в столько мс производятся вычисления скоростей, позиций и т.п.
 
@@ -83,6 +85,9 @@ void setup() {
 }
 unsigned long tmr2 = millis();
 
+unsigned long lastBarTime = 0;
+const uint32_t BAR_INTERVAL = 30;
+
 void loop() {
 
   tmr = millis();
@@ -92,10 +97,12 @@ void loop() {
   AcsCall();
   MagCall();
   GyroCall();
-  BarThermCall();
+  if (millis() - lastBarTime >= BAR_INTERVAL){
+    BarThermCall();
+    lastBarTime = millis();
+  }
   if (currentMode == MODE_NORMAL){
   VelPos();
-
   RadioCall();
   ActuatorsCall();
   }
@@ -117,6 +124,7 @@ static void writeU16LE(uint16_t v) // запись байта в сериал
 // Отправка пакета с данными на комп
 static void sendPacket()
 {
+    
     DataPacket p{};
     p.time   = (float)millis();
 
@@ -560,6 +568,17 @@ void BarThermCall() {
            X2 = ((long)-7357*P)>>16;
            P += (X1+X2+3791)>>4;
            BarAlt = (float)44330*(1-pow(P/101325.0, 1.0/5.255));
+          
+           // === ОТЛАДКА BMP180 ===
+// Serial.println("=== BMP180 DEBUG ===");
+// Serial.print("UP: "); Serial.println(UP);
+// Serial.print("Tbu: "); Serial.println(Tbu);
+// Serial.print("B3: "); Serial.println(B3);
+// Serial.print("B4: "); Serial.println(B4);
+// Serial.print("B7: "); Serial.println(B7);
+// Serial.print("OSS: "); Serial.println(OSS);
+// Serial.print("P_final: "); Serial.println(P);
+// Serial.println("=== END DEBUG ===");
     }
   }
 
