@@ -55,7 +55,8 @@ TelemetryChartWidget::TelemetryChartWidget(const QString &defaultChannelSet,
   m_chart->setMargins(QMargins(0, 0, 0, 0));
   m_chart->setBackgroundRoundness(0.0);
 
-  m_chartView->setRenderHint(QPainter::Antialiasing);
+  m_chart->setAnimationOptions(QChart::NoAnimation);
+  //  m_chartView->setRenderHint(QPainter::Antialiasing);
   m_chartView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
   m_axisX->setTitleText(QStringLiteral("Time, s"));

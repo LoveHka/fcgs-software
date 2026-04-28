@@ -34,14 +34,16 @@ float sx, sy, sz;
 
 // --- МАГНИТОМЕТР ---
 float mx, my, mz;
-float MagDecl = 11.93; //Магнитное склонение в градусах (оно изменчиво)
+float MagDecl = 12.42; //Магнитное склонение в градусах (оно изменчиво)
 float Heading;
-
-float magOffset[3] = {0,0,0};
+// Дефолтные значения, получены в результате одной из калибровок.
+// Дают более-менее адекватный результат даже без необходимости калибровать 
+// (Я уже устал каждый раз при запуске его вертеть... Помогите...)
+float magOffset[3] = {1894.921264648, -2562.524902344 , -1817.188598633};
 float magMatrix[3][3] = {
-  {1, 0, 0},
-  {0, 1, 0},
-  {0, 0, 1}
+  {0.001743632, -0.000027332, -0.000029362},
+  {-0.000027332, 0.001942882, -0.000027006},
+  {-0.000029362, -0.000027006, 0.001352575}
 };
 
 // --- ГИРОСКОП ---
@@ -229,18 +231,27 @@ void handleCommand(const CommandPacket& c)
 
   case CMD_SET_MODE:
     currentMode = (uint8_t)c.params[0];
+    if (currentMode == MODE_MAG_CALIB){
+      float magOffset[3] = {0, 0 , 0};
+      float magMatrix[3][3] = {
+                     {1, 0, 0},
+                     {0, 1, 0},
+                     {0, 0, 1}
+      };
+    }
     break;
 
   case CMD_SET_MAG_CALIB:
+    
     magOffset[0] = c.params[0];
     magOffset[1] = c.params[1];
     magOffset[2] = c.params[2];
-
     int k = 3;
     for (int r = 0; r < 3; r++)
       for (int col = 0; col < 3; col++)
         magMatrix[r][col] = c.params[k++];
-
+    
+    sendMessage("Я получил вашу матрицу! Ня!");
     break;
   }
 }
@@ -280,24 +291,26 @@ void AcsCall() {
 
   int x,y,z;
 
-  float axCor = 0.2;
-  float ayCor = 0;
-  float azCor = 0;
+  axCor = 0.2;
+  ayCor = 0;
+  azCor = 0;
 
   //прочитаем 6 байтов значений XYZ и преобразуем их
   Wire.requestFrom(ADXL345, 6);
   while (Wire.available()) {
     x = Wire.read(); //LSB  x 
     x |= Wire.read()<<8; //MSB  x
-    y = Wire.read(); //LSB  z
-    y |= Wire.read()<<8; //MSB z
-    z = Wire.read(); //LSB y
-    z |= Wire.read()<<8; //MSB y
+    y = Wire.read(); //LSB  y
+    y |= Wire.read()<<8; //MSB y
+    z = Wire.read(); //LSB z
+    z |= Wire.read()<<8; //MSB z
   }
-
+  
+  // ТУт тоже знаки изменены для соответстви системе
+  // NED - Север Восток Низ - Х как на плате, а Y и Z инвертируем
   ax = -(x/26.32 - axCor);
-  ay = -(y/26.32 - ayCor);
-  az = -(z/26.32 - azCor);
+  ay = (y/26.32 - ayCor);
+  az = (z/26.32 - azCor);
 
   // удалил ax=ax и для других осей.
 }
@@ -341,15 +354,15 @@ void MagCall() {
   if(Wire.available()){
     x = Wire.read(); //LSB  x 
     x |= Wire.read()<<8; //MSB  x
-    y = Wire.read(); //LSB  z
-    y |= Wire.read()<<8; //MSB z
-    z = Wire.read(); //LSB y
-    z |= Wire.read()<<8; //MSB y
+    y = Wire.read(); //LSB  y
+    y |= Wire.read()<<8; //MSB y
+    z = Wire.read(); //LSB z
+    z |= Wire.read()<<8; //MSB z
   }
                                   //Каждая единица в выводе это Scale (+-8 щас)/2^16, т.е. ~0.000244 Гаусс 0.244 млГаусс 4096 - 1 Гаусс
   float fx = x;
-  float fy = y;
-  float fz = z;
+  float fy = -y;
+  float fz = -z;
   if (currentMode == MODE_NORMAL) {
     applyMagCalibration(fx, fy, fz);
   }
@@ -358,9 +371,9 @@ void MagCall() {
   mz = fz;
 
   // Переводим в градусы
-  Heading = atan2((float)my, (float)mx) * 180.0 / PI;
+  Heading = atan2((float)(-my), (float)mx) * 180.0 / PI;
     // Учитываем магнитное склонение
-  Heading += MagDecl;
+  Heading -= MagDecl;
   // Нормализуем к диапазону 0..360
   if (Heading < 0) Heading += 360.0;
   if (Heading >= 360.0) Heading -= 360.0;
@@ -419,7 +432,7 @@ void GyroSetup() {
      Wire.write(GyroCTRL[i]);
      Wire.endTransmission();
    } 
-  // НАчальные значения углов. Не скоростей.
+  // НАчальные значения углов. 
   angx = 0;
   angy = 0;
   angz = 90;
@@ -463,10 +476,11 @@ void GyroCall() {
     z = Wire.read(); //LSB  z 
     z |= Wire.read()<<8; //MSB  z
   }
- 
+  // Здесь знаки определются для соответствия 
+  // системе NED - North East Down. 
   gx = x/131.072;
-  gy = y/131.072;
-  gz = z/131.072;
+  gy = -y/131.072;
+  gz = -z/131.072;
 
 }
 

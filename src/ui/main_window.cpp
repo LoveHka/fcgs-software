@@ -13,6 +13,7 @@
 #include "ui/trajectory_widget.h" // Виджет для траектории с видом сверху
 
 #include <QComboBox>
+#include <QElapsedTimer>
 #include <QFrame>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -22,6 +23,8 @@
 #include <QScrollArea>
 #include <QTabWidget>
 #include <QVBoxLayout>
+#include <qdatetime.h>
+#include <qdebug.h>
 
 namespace {
 QFrame *createPanel(QWidget *parent = nullptr) {
@@ -141,10 +144,22 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 }
 
 void MainWindow::onPacket(const DataPacket &p) {
+  static QElapsedTimer timer;
+  if (!timer.isValid())
+    timer.start();
+  timer.restart();
   m_charts[0]->appendPacket(p);
-  m_charts[1]->appendPacket(p);
-  m_charts[2]->appendPacket(p);
+  // m_charts[1]->appendPacket(p);
+  // m_charts[2]->appendPacket(p);
+  qDebug() << "Time spended for charts: " << timer.elapsed();
+  timer.restart();
   m_3dWidget->updateOrientation(p);
+  qDebug() << "Time spended for 3D: " << timer.elapsed();
+  timer.restart();
   m_trajectoryWidget->updatePosition(p);
+  qDebug() << "Time spended for trajectory_widget: " << timer.elapsed();
+  timer.restart();
   m_valuesWidget->updateValues(p);
+  qDebug() << "Time spended for values: " << timer.elapsed();
+  timer.restart();
 }
