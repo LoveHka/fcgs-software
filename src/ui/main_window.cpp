@@ -148,7 +148,7 @@ void MainWindow::onPacket(const DataPacket &p) {
   if (!timer.isValid())
     timer.start();
   timer.restart();
-  m_charts[0]->appendPacket(p);
+  // m_charts[0]->appendPacket(p);
   // m_charts[1]->appendPacket(p);
   // m_charts[2]->appendPacket(p);
   qDebug() << "Time spended for charts: " << timer.elapsed();
