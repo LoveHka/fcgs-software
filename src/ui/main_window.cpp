@@ -141,6 +141,30 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   if (index >= 0) {
     reader->open(ports[index].portName());
   }
+
+  // 1. Создаем логгер
+  m_logger = new TelemetryLogger(this);
+
+  // 2. Подключаем сигнал от SerialReader к слоту логгера
+  // Теперь каждый пришедший пакет будет автоматически писаться в файл
+  connect(reader, &SerialReader::packetReady, m_logger,
+          &TelemetryLogger::onPacketReceived);
+
+  // 3. АВТОМАТИЧЕСКИЙ СТАРТ ЛОГИРОВАНИЯ
+  // Генерируем имя файла с текущей датой и временем, чтобы не перезаписывать
+  // старый лог
+  QString fileName =
+      QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss") + "_tel.csv";
+
+  // Можно сохранить файл рядом с исполняемым файлом или в документах
+  // Для простоты сохраняем в текущей рабочей директории
+  if (!m_logger->startLogging(fileName)) {
+    qDebug() << "Не удалось начать логирование в файл:" << fileName;
+    // Можно вывести сообщение пользователю через QMessageBox, если критично
+  } else {
+    qDebug() << "Логирование начато в файл:" << fileName;
+    // statusBar()->showMessage("Лог сохранен: " + fileName, 5000);
+  }
 }
 
 void MainWindow::onPacket(const DataPacket &p) {
@@ -148,7 +172,7 @@ void MainWindow::onPacket(const DataPacket &p) {
   if (!timer.isValid())
     timer.start();
   timer.restart();
-  // m_charts[0]->appendPacket(p);
+  m_charts[0]->appendPacket(p);
   // m_charts[1]->appendPacket(p);
   // m_charts[2]->appendPacket(p);
   qDebug() << "Time spended for charts: " << timer.elapsed();
@@ -163,3 +187,5 @@ void MainWindow::onPacket(const DataPacket &p) {
   qDebug() << "Time spended for values: " << timer.elapsed();
   timer.restart();
 }
+
+// ДЕСТРУКТОР

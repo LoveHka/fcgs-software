@@ -124,10 +124,10 @@ void loop() {
   }
     
   
-  //if(millis() - tmr2 >= 50){
+  if(millis() - tmr2 >= 50){
     sendPacket();
-    //tmr2 = millis();
-  //}
+    tmr2 = millis();
+  }
 }
 
 static void writeU16LE(uint16_t v) // запись байта в сериал

@@ -40,6 +40,7 @@ add_executable(fcgs
     src/datasource/serialreader.cpp
     src/calibration/magcalibrator.cpp
     src/calibration/calibrationcontroller.cpp
+    src/datasource/telemetry_logger.cpp
 )
 
 target_include_directories(fcgs PRIVATE

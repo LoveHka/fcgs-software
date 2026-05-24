@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "datasource/telemetry_logger.h"
 #include <QMainWindow>
 #include <array>
 
@@ -13,6 +14,7 @@ class TelemetryValuesWidget;
 class CalibrationController;
 class MagCalibrationWidget;
 class TelemetryMessagesWidget;
+class TelemetryLogger;
 struct DataPacket;
 
 class MainWindow : public QMainWindow {
@@ -33,4 +35,6 @@ private:
   TelemetryValuesWidget *m_valuesWidget{nullptr};
   MagCalibrationWidget *m_magCalWidget{nullptr};
   TelemetryMessagesWidget *m_msgWidget{nullptr};
+
+  TelemetryLogger *m_logger;
 };
