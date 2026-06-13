@@ -71,12 +71,15 @@ float tcstep = 1; // Tcycle но в секундах. Для расчетов
 // Для Маджвика
 
 // Константы системы
-float beta = 4.0f;    // Коэффициент усиления фильтра (влияет на скорость сходимости)
+float beta = 5.0f;    // Коэффициент усиления фильтра (влияет на скорость сходимости)
 float zeta = 0.0f;
  // Переменные магнитного поля в земной системе координат
 float SEq_1 = 1.0f, SEq_2 = 0.0f, SEq_3 = 0.0f, SEq_4 = 0.0f; // Элементы кватерниона ориентации с начальными условиями
 float b_x = 1.0f, b_z = 0.0f; // Эталонное направление потока в системе отсчета Земли
 float w_bx = 0.0f, w_by = 0.0f, w_bz = 0.0f; // Оценка ошибки смещения гироскопа
+
+// Фильтр акселерометра
+float acc_alpha = 0.1;
 
 
 void setup() {
@@ -123,11 +126,11 @@ void loop() {
   ActuatorsCall();
   }
     
-  
-  if(millis() - tmr2 >= 50){
+  // Просто отправляем пакеты
+  //if(millis() - tmr2 >= 50){
     sendPacket();
-    tmr2 = millis();
-  }
+    //tmr2 = millis();
+  //}
 }
 
 static void writeU16LE(uint16_t v) // запись байта в сериал
@@ -318,13 +321,16 @@ void AcsCall() {
     z = Wire.read(); //LSB z
     z |= Wire.read()<<8; //MSB z
   }
-  
+  float nax, nay, naz; 
   // ТУт тоже знаки изменены для соответстви системе
   // NED - Север Восток Низ - Х как на плате, а Y и Z инвертируем
-  ax = -(x/26.32 - axCor);
-  ay = (y/26.32 - ayCor);
-  az = (z/26.32 - azCor);
-
+  nax = -(x/26.32 - axCor);
+  nay = (y/26.32 - ayCor);
+  naz = (z/26.32 - azCor);
+  
+  ax = acc_alpha * nax + (1 - acc_alpha) * ax;
+  ay = acc_alpha * nay + (1 - acc_alpha) * ay;
+  az = acc_alpha * naz + (1 - acc_alpha) * az;
   // удалил ax=ax и для других осей.
 }
 

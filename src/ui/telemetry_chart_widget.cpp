@@ -1,5 +1,4 @@
 // ui/telemetry_chart_widget.cpp
-
 #include "ui/telemetry_chart_widget.h"
 
 #include <QtCharts/QChart>
@@ -52,18 +51,25 @@ TelemetryChartWidget::TelemetryChartWidget(const QString &defaultChannelSet,
 
   m_chart->legend()->setVisible(true);
   m_chart->legend()->setAlignment(Qt::AlignLeft);
-  m_chart->setMargins(QMargins(0, 0, 0, 0));
+  m_chart->legend()->setContentsMargins(0, 0, 0, 0);
+  m_chart->legend()->setVisible(false);
+  // m_chart->setMargins(QMargins(200, 20, 20, 20));
   m_chart->setBackgroundRoundness(0.0);
 
   m_chart->setAnimationOptions(QChart::NoAnimation);
-  //  m_chartView->setRenderHint(QPainter::Antialiasing);
   m_chartView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
   m_axisX->setTitleText(QStringLiteral("Time, s"));
+  m_axisX->setTitleVisible(false);
   m_axisX->setLabelFormat("%.2f");
 
-  m_axisY->setTitleText(QStringLiteral("Value"));
-  m_axisY->setLabelFormat("%.2f");
+  // m_axisY->setTitleText(QStringLiteral("Value"));
+  m_axisY->setTitleVisible(false);
+  m_axisY->setLabelFormat("%g");
+
+  QFont axFont = m_axisY->labelsFont();
+  axFont.setPointSize(6);
+  m_axisY->setLabelsFont(axFont);
 
   m_chart->addAxis(m_axisX, Qt::AlignBottom);
   m_chart->addAxis(m_axisY, Qt::AlignLeft);
@@ -80,6 +86,12 @@ TelemetryChartWidget::TelemetryChartWidget(const QString &defaultChannelSet,
   m_combo->setCurrentIndex(defaultIndex >= 0 ? defaultIndex : 0);
 
   rebuildSeries();
+
+  // Настройка и запуск таймера на 30 FPS (~33 миллисекунды)
+  m_renderTimer = new QTimer(this);
+  connect(m_renderTimer, &QTimer::timeout, this,
+          &TelemetryChartWidget::onRenderTimer);
+  m_renderTimer->start(33);
 }
 
 const QVector<TelemetryChartWidget::ChannelSetSpec> &
@@ -195,6 +207,7 @@ void TelemetryChartWidget::rebuildSeries() {
   }
   m_seriesList.clear();
   m_activeChannels.clear();
+  m_pendingData.clear();
 
   const int selectedIndex = m_combo ? m_combo->currentIndex() : -1;
   const auto &sets = channelSets();
@@ -217,12 +230,19 @@ void TelemetryChartWidget::rebuildSeries() {
     pen.setWidthF(2.0);
     series->setPen(pen);
 
+    // Включаем встроенное OpenGL ускорение QtCharts для отрисовки линий
+    // series->setUseOpenGL(true);
+
     m_chart->addSeries(series);
     series->attachAxis(m_axisX);
     series->attachAxis(m_axisY);
 
     m_seriesList.append(series);
   }
+
+  // Резервируем буферы под новые серии
+  m_pendingData.resize(m_seriesList.size());
+  m_yBoundsInitialized = false;
 
   resetViewport();
 }
@@ -236,21 +256,67 @@ void TelemetryChartWidget::resetViewport() {
 }
 
 void TelemetryChartWidget::appendPacket(const DataPacket &packet) {
-  if (m_activeChannels.isEmpty() || m_seriesList.isEmpty()) {
+  if (m_activeChannels.isEmpty() || m_seriesList.isEmpty() ||
+      m_pendingData.isEmpty()) {
     return;
   }
 
   const qreal x = static_cast<qreal>(packet.time) / 1000.0;
 
+  // Быстро записываем данные во временные буферы, не затрагивая UI сигналы
   for (int i = 0; i < m_seriesList.size() && i < m_activeChannels.size(); ++i) {
     const qreal y = m_activeChannels[i].getter(packet);
-    m_seriesList[i]->append(x, y);
+    m_pendingData[i].append(QPointF(x, y));
+
+    // Вычисляем границы Y на лету во время добавления пакета
+    if (!m_yBoundsInitialized) {
+      m_currentMinY = m_currentMaxY = y;
+      m_yBoundsInitialized = true;
+    } else {
+      if (y < m_currentMinY)
+        m_currentMinY = y;
+      if (y > m_currentMaxY)
+        m_currentMaxY = y;
+    }
   }
 
   m_lastX = x;
   m_hasData = true;
+}
 
-  trimSeriesIfNeeded();
+void TelemetryChartWidget::onRenderTimer() {
+  // Если новых данных нет или буферы пусты — пропускаем кадр
+  if (!m_hasData || m_pendingData.isEmpty() ||
+      m_pendingData.first().isEmpty()) {
+    return;
+  }
+
+  // Отключаем сигналы чарта, чтобы избежать промежуточных перерисовок
+  m_chart->blockSignals(true);
+
+  for (int i = 0; i < m_seriesList.size(); ++i) {
+    auto *series = m_seriesList[i];
+
+    // Быстро извлекаем текущие точки через вектор без полного копирования
+    // структуры данных
+    QVector<QPointF> points = series->pointsVector();
+
+    // Сливаем старые точки с накопленным за 33мс буфером пакетов
+    points.append(m_pendingData[i]);
+    m_pendingData[i].clear();
+
+    // Обрезаем данные по лимиту количества точек прямо внутри вектора
+    if (points.size() > m_pointLimit) {
+      points.remove(0, points.size() - m_pointLimit);
+    }
+
+    // Передаем весь обновленный массив обратно в серию за одну операцию
+    series->replace(points);
+  }
+
+  // Включаем сигналы обратно для финального обновления кадра
+  m_chart->blockSignals(false);
+
   updateXAxis();
   updateYAxis();
 }
@@ -259,6 +325,10 @@ void TelemetryChartWidget::clear() {
   for (auto *series : m_seriesList) {
     series->clear();
   }
+  for (auto &buffer : m_pendingData) {
+    buffer.clear();
+  }
+  m_yBoundsInitialized = false;
   resetViewport();
 }
 
@@ -288,7 +358,6 @@ void TelemetryChartWidget::setTimeWindow(qreal seconds) {
 
 void TelemetryChartWidget::setPointLimit(int limit) {
   m_pointLimit = std::max(2, limit);
-  trimSeriesIfNeeded();
   updateYAxis();
 }
 
@@ -303,69 +372,43 @@ void TelemetryChartWidget::updateXAxis() {
   const qreal maxX = std::max<qreal>(m_lastX, 0.001);
   const qreal minX = std::max<qreal>(0.0, maxX - m_timeWindowSec);
 
-  if (maxX <= minX) {
-    m_axisX->setRange(minX, minX + 0.001);
+  if (maxX <= minX)
     return;
-  }
 
-  m_axisX->setRange(minX, maxX);
+  // Округляем до 2 знаков после запятой для стабильности сетки
+  const qreal newMin = std::round(minX * 100.0) / 100.0;
+  const qreal newMax = std::round(maxX * 100.0) / 100.0;
+
+  // Обновляем диапазон ТОЛЬКО если он изменился существенно
+  // Это предотвращает постоянный пересчет макета и исчезновение цифр
+  if (std::abs(m_axisX->min() - newMin) > 0.01 ||
+      std::abs(m_axisX->max() - newMax) > 0.01) {
+    m_axisX->setRange(newMin, newMax);
+  }
 }
 
 void TelemetryChartWidget::updateYAxis() {
-  if (m_seriesList.isEmpty()) {
+  if (!m_yBoundsInitialized || m_seriesList.isEmpty()) {
     m_axisY->setRange(-1.0, 1.0);
     return;
   }
 
-  bool haveData = false;
-  qreal minY = 0.0;
-  qreal maxY = 0.0;
-
-  for (const auto *series : m_seriesList) {
-    const auto points = series->points();
-    for (const auto &point : points) {
-      const qreal y = point.y();
-
-      if (!haveData) {
-        minY = maxY = y;
-        haveData = true;
-      } else {
-        minY = std::min(minY, y);
-        maxY = std::max(maxY, y);
-      }
-    }
-  }
-
-  if (!haveData) {
-    m_axisY->setRange(-1.0, 1.0);
-    return;
-  }
-
-  const qreal span = maxY - minY;
+  const qreal span = m_currentMaxY - m_currentMinY;
   qreal padding = 0.0;
 
   if (span <= 0.000001) {
-    padding = std::max<qreal>(0.5, std::abs(maxY) * 0.1);
+    padding = std::max<qreal>(0.5, std::abs(m_currentMaxY) * 0.1);
   } else {
     padding = std::max<qreal>(span * 0.10, 0.5);
   }
 
-  m_axisY->setRange(minY - padding, maxY + padding);
-}
+  // Округляем границы до 2 знаков после запятой
+  const qreal newMin = std::round((m_currentMinY - padding) * 100.0) / 100.0;
+  const qreal newMax = std::round((m_currentMaxY + padding) * 100.0) / 100.0;
 
-void TelemetryChartWidget::trimSeriesIfNeeded() {
-  if (m_seriesList.isEmpty()) {
-    return;
-  }
-
-  const int count = m_seriesList.first()->count();
-  if (count <= m_pointLimit) {
-    return;
-  }
-
-  const int removeCount = count - m_pointLimit;
-
-  for (auto *series : m_seriesList) {
-    series->removePoints(0, removeCount);
+  // Обновляем ТОЛЬКО при существенном изменении
+  if (std::abs(m_axisY->min() - newMin) > 0.01 ||
+      std::abs(m_axisY->max() - newMax) > 0.01) {
+    m_axisY->setRange(newMin, newMax);
   }
 }

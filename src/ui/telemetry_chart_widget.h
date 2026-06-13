@@ -2,6 +2,7 @@
 #pragma once
 
 #include "datasource/telemetry_protocol.h"
+#include <QPointF>
 #include <QTimer>
 #include <QVector>
 #include <QWidget>
@@ -19,6 +20,7 @@ class TelemetryChartWidget : public QWidget {
 public:
   explicit TelemetryChartWidget(const QString &defaultChannelSet,
                                 QWidget *parent = nullptr);
+  ~TelemetryChartWidget() override = default;
 
   void appendPacket(const DataPacket &packet);
   void clear();
@@ -31,6 +33,7 @@ public:
 
 private slots:
   void onSelectionChanged(int index);
+  void onRenderTimer(); // Новый слот для отрисовки графиков на частоте 30 FPS
 
 private:
   struct ChannelSpec {
@@ -51,7 +54,6 @@ private:
   void resetViewport();
   void updateXAxis();
   void updateYAxis();
-  void trimSeriesIfNeeded();
 
 private:
   QChart *m_chart{nullptr};
@@ -69,5 +71,14 @@ private:
   qreal m_lastX{0.0};
   bool m_hasData{false};
 
-  QTimer *chartTimer;
+  // Временные накопительные буферы для пакетов (для реализации 30 FPS)
+  QVector<QVector<QPointF>> m_pendingData;
+
+  // Кэшированные значения экстремумов для мгновенного расчета оси Y
+  qreal m_currentMinY{0.0};
+  qreal m_currentMaxY{0.0};
+  bool m_yBoundsInitialized{false};
+
+  // Таймер фиксированной отрисовки графиков
+  QTimer *m_renderTimer{nullptr};
 };
